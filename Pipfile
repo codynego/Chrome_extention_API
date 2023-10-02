@@ -12,6 +12,8 @@ celery = "*"
 redis = "*"
 drf-yasg = "*"
 django-cors-headers = "*"
+imageio = {extras = ["ffmpeg"], version = "*"}
+ffmpeg-python = "*"
 
 [dev-packages]
 

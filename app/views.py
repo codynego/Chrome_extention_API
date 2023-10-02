@@ -43,87 +43,55 @@ from django.core.files.base import ContentFile
 
 
 import tempfile
+import io
 import os
+import ffmpeg
+from django.http import JsonResponse
 from django.core.files.base import ContentFile
-from rest_framework import status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from .models import Video, VideoChunk
-from moviepy.editor import VideoFileClip, concatenate_videoclips
+from .models import Video
 
-class VideoUpdateAPIView(APIView):
-    def post(self, request, video_id, format=None):
-        try:
-            video_instance = Video.objects.get(id=video_id)
-        except Video.DoesNotExist:
-            return Response({'error': 'Video not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        video_chunk_data = request.body
-        is_last = request.query_params.get('is_last', False)
+class VideoUploadAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        # Get the binary video data from the request body
+        video_binary_data = request.body
 
-        # Save the video chunk data to the database
-        VideoChunk.objects.create(video=video_instance, chunk_data=video_chunk_data)
+        # Get the file extension (assuming it's mp4, you can modify this logic if different formats are expected)
+        file_extension = '.mp4'
 
-        if is_last:
-            # Retrieve all chunks associated with this video
-            video_chunks = VideoChunk.objects.filter(video=video_instance)
+        # Convert binary data to a video file
+        video_path = self.save_video_to_disk(video_binary_data, file_extension)
 
-            # Concatenate video chunks into a complete video file
-            final_clip = self.compile_video_chunks(video_chunks)
+        if video_path:
+            # Save the video path to the database (assuming you have a Video model with a field 'video_file')
+            video_instance = Video(video_file=video_path)
+            video_instance.save()
 
-            # Save the concatenated video data to the video model
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as final_tempfile:
-                final_clip.write_videofile(final_tempfile.name, codec='libx264')
-                final_tempfile_path = final_tempfile.name
-
-            video_instance.video_file.save('compiled_video.mp4', ContentFile(open(final_tempfile_path, 'rb').read()))
-
-            # Clean up temporary files
-            os.remove(final_tempfile_path)
-
-            return Response({'message': 'Video processed successfully'}, status=status.HTTP_200_OK)
+            # Respond with success message and video path
+            return JsonResponse({'message': 'Video uploaded and saved successfully', 'video_path': video_path}, status=200)
         else:
-            return Response({'message': 'Chunk processed successfully'}, status=status.HTTP_200_OK)
+            # Respond with an error if video conversion fails
+            return JsonResponse({'error': 'Failed to process video'}, status=500)
 
-    def compile_video_chunks(self, video_chunks):
-        temp_files = []
-
-        # Create VideoFileClip objects for each chunk and save them as temporary files
-        clips = []
-        for chunk in video_chunks:
-            chunk_data = chunk.chunk_data
-            video_file = io.BytesIO(chunk_data)
-
-            # Create temporary file
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
-            temp_file.write(video_file.read())
+    def save_video_to_disk(self, video_binary_data, file_extension):
+        try:
+            # Create a temporary file to save the video data
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_extension)
+            temp_file.write(video_binary_data)
             temp_file.close()
 
-            # Append temporary file to the list for cleanup later
-            temp_files.append(temp_file.name)
+            # Specify output file path for the converted video
+            output_file_path = f"media/videos/{temp_file.name.split('/')[-1].split('.')[0]}_converted{file_extension}"
 
-            # Create VideoFileClip object from the temporary file
-            clip = VideoFileClip(temp_file.name)
-            clips.append(clip)
+            # Use ffmpeg to convert the video to the desired format
+            ffmpeg.input(temp_file.name).output(output_file_path).run()
 
-        # Concatenate video clips
-        final_clip = concatenate_videoclips(clips)
+            # Delete the temporary file
+            os.remove(temp_file.name)
 
-        # Save the concatenated video data to BytesIO
-        compiled_video_data = io.BytesIO()
-        final_clip.write_videofile(compiled_video_data, codec='libx264')
-
-        # Clean up temporary files
-        for temp_file in temp_files:
-            os.remove(temp_file)
-
-        # Get the compiled video binary data
-        compiled_video_data.seek(0)
-        compiled_video_binary = compiled_video_data.read()
-
-        # Close the BytesIO object to free up resources
-        compiled_video_data.close()
-
-        return compiled_video_binary
-
-    
+            # Return the path where the converted video is saved
+            return output_file_path
+        except Exception as e:
+            # Handle any exceptions that might occur during video processing
+            print(f"Error: {e}")
+            return None
