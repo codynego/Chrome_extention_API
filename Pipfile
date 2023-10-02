@@ -7,6 +7,11 @@ name = "pypi"
 djangorestframework = "*"
 django = "*"
 channels = "*"
+moviepy = "*"
+celery = "*"
+redis = "*"
+drf-yasg = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 

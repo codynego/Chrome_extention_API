@@ -38,9 +38,20 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'api',
     'channels',
+    'drf_yasg',
+    'corsheaders',
+    'app',
 ]
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+
+# settings.py
+
+# Set DATA_UPLOAD_MAX_MEMORY_SIZE to the maximum size you want to allow (in bytes).
+# For example, to allow 50 MB requests, you can set it to 50 * 1024 * 1024.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -54,6 +65,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'core.urls'
+CORS_ALLOW_ALL_ORIGINS = True
+
 
 TEMPLATES = [
     {
