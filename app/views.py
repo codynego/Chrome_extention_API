@@ -86,29 +86,44 @@ class VideoUpdateAPIView(APIView):
             return Response({'message': 'Chunk processed successfully'}, status=status.HTTP_200_OK)
 
     def compile_video_chunks(self, video_chunks):
-        # Create a list to store VideoFileClip objects
-        video_clips = []
+        temp_files = []
 
-        # Iterate over the video chunks and create VideoFileClip objects
+        # Create VideoFileClip objects for each chunk and save them as temporary files
+        clips = []
         for chunk in video_chunks:
-            video_data = chunk.chunk_data.read()  # Read video chunk data
-            clip = VideoFileClip(io.BytesIO(video_data))
-            video_clips.append(clip)
+            chunk_data = chunk.chunk_data
+            video_file = io.BytesIO(chunk_data)
 
-        # Concatenate video clips into a single clip
-        final_clip = concatenate_videoclips(video_clips)
+            # Create temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+            temp_file.write(video_file.read())
+            temp_file.close()
 
-        # Close the VideoFileClip objects to free up resources
-        for clip in video_clips:
-            clip.close()
+            # Append temporary file to the list for cleanup later
+            temp_files.append(temp_file.name)
 
-        return final_clip
+            # Create VideoFileClip object from the temporary file
+            clip = VideoFileClip(temp_file.name)
+            clips.append(clip)
 
+        # Concatenate video clips
+        final_clip = concatenate_videoclips(clips)
 
+        # Save the concatenated video data to BytesIO
+        compiled_video_data = io.BytesIO()
+        final_clip.write_videofile(compiled_video_data, codec='libx264')
 
+        # Clean up temporary files
+        for temp_file in temp_files:
+            os.remove(temp_file)
 
+        # Get the compiled video binary data
+        compiled_video_data.seek(0)
+        compiled_video_binary = compiled_video_data.read()
 
+        # Close the BytesIO object to free up resources
+        compiled_video_data.close()
 
+        return compiled_video_binary
 
-
-
+    

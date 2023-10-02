@@ -46,6 +46,7 @@ INSTALLED_APPS = [
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 
+
 # settings.py
 
 # Set DATA_UPLOAD_MAX_MEMORY_SIZE to the maximum size you want to allow (in bytes).
@@ -146,3 +147,8 @@ CORS_ORIGIN_ALLOW_ALL = True
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+DATABASE_POOL_ARGS = {
+    'max_connections': 20,  # Adjust the maximum number of connections as per your requirements
+}
